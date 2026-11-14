@@ -45,7 +45,13 @@ export default function ReviewMap({ place, photoIndex, onPhoto }) {
   }, []);
   function drawGeometry() {
     const m = map.current;
-    if (!m || !m.isStyleLoaded() || !geometry.current) return;
+    if (!m || !geometry.current) return;
+    // Geometry can arrive while style sources are still loading. Retry once
+    // at idle instead of silently losing the selected-object highlight.
+    if (!m.isStyleLoaded()) {
+      m.once("idle", drawGeometry);
+      return;
+    }
     if (m.getSource("review-object"))
       m.getSource("review-object").setData(geometry.current);
     else {
