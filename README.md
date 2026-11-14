@@ -51,7 +51,7 @@ Changeset metadata: `created_by=Fotoshi2OSM 0.1`, a mapper-editable comment, `so
 
 Upstream: https://framagit.org/Pic4Carto/Pic4Review (Adrien Pavie / Pic4Review contributors, AGPL). This repository was imported from the actual Fotoshi/Pic4Review fork in `atlascove/atlascove.github.io`, branch `feature/fotoshi2osm-labs`, on 2026-11-14. The initial Git commit preserves the complete imported prototype source. Subsequent commits port the question/gallery workflow and remove unused legacy frontend/backend modules and dependencies. Original upstream documentation is under `docs/`.
 
-The hosted derivative and its corresponding source are AGPL-3.0-or-later: see [LICENSE](LICENSE). Photographer licences and OSM/ODbL attribution are independent. Fotoshi's existing outlined logo artwork is reused; no Sifonn font binary is distributed. Dependencies retain their respective licences (see `dist/app.js.LEGAL.txt` and MapLibre's distribution header).
+The hosted derivative and its corresponding source are AGPL-3.0-or-later: see [LICENSE](LICENSE). Photographer licences and OSM/ODbL attribution are independent. Fotoshi's existing outlined logo artwork is reused; no Sifonn font binary is distributed. Dependencies retain their respective licences (see `dist/app-*.js.LEGAL.txt` and MapLibre's distribution header).
 
 Related: [FOT-998](https://linear.app/fotoshi/issue/FOT-998), [FOT-1002](https://linear.app/fotoshi/issue/FOT-1002). This is a small first implementation, not completion of all proposed mission, enrichment, telemetry or website-entry-point work in those issues.
 
