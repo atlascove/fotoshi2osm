@@ -26,6 +26,7 @@ export default function ReviewMap({ place, photoIndex, onPhoto }) {
       attributionControl: false,
     });
     map.current = m;
+    m.on("style.load", drawGeometry);
     m.addControl(
       new maplibregl.NavigationControl({ showCompass: false }),
       "bottom-right",
@@ -100,7 +101,6 @@ export default function ReviewMap({ place, photoIndex, onPhoto }) {
         for (const source of Object.keys(style.sources))
           if (source.startsWith("coverage")) delete style.sources[source];
         map.current?.setStyle(style);
-        map.current?.once("style.load", drawGeometry);
       })
       .catch((e) => {
         if (e.name !== "AbortError") setError("Basemap unavailable.");
@@ -117,19 +117,6 @@ export default function ReviewMap({ place, photoIndex, onPhoto }) {
     };
     drawGeometry();
     m?.easeTo({ center: place.loc, zoom: 18, duration: 250 });
-    markers.current.forEach((x) => x.remove());
-    markers.current = place.photos.map((photo, i) => {
-      const el = document.createElement("button");
-      el.type = "button";
-      el.className = "camera-location" + (i === photoIndex ? " selected" : "");
-      el.title = `Photo ${i + 1}`;
-      el.setAttribute("aria-label", `Show photo ${i + 1}`);
-      el.textContent = String(i + 1);
-      el.onclick = () => callbacks.current.onPhoto(i);
-      return new maplibregl.Marker({ element: el })
-        .setLngLat(photo.coordinates)
-        .addTo(m);
-    });
     if (place.ref)
       fetch(
         `https://api.openstreetmap.org/api/0.6/${place.ref}${place.ref.startsWith("node/") ? "" : "/full"}.json`,
@@ -151,6 +138,22 @@ export default function ReviewMap({ place, photoIndex, onPhoto }) {
         .catch(() => {});
     return () => abort.abort();
   }, [place.fid, place.ref]);
+  useEffect(() => {
+    const m = map.current;
+    markers.current.forEach((x) => x.remove());
+    markers.current = place.photos.map((photo, i) => {
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "camera-location" + (i === photoIndex ? " selected" : "");
+      el.title = `Photo ${i + 1}`;
+      el.setAttribute("aria-label", `Show photo ${i + 1}`);
+      el.textContent = String(i + 1);
+      el.onclick = () => callbacks.current.onPhoto(i);
+      return new maplibregl.Marker({ element: el })
+        .setLngLat(photo.coordinates)
+        .addTo(m);
+    });
+  }, [place.fid, place.photos]);
   useEffect(() => {
     markers.current.forEach((marker, i) =>
       marker.getElement().classList.toggle("selected", i === photoIndex),
