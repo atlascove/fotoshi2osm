@@ -1,0 +1,5 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Content-Security-Policy: default-src 'self'; script-src 'self' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' blob: data: https://cdn.fotoshi.com https://www.fotoshi.com; connect-src 'self' https://api.fotoshi.com https://osm.fotoshi.com https://tiles.fotoshi.com https://dev.tiles.fotoshi.com https://api.openstreetmap.org https://www.openstreetmap.org https://cdn.fotoshi.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
