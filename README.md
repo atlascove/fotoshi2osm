@@ -26,17 +26,17 @@ npm run dev
 
 Open http://localhost:8095/fotoshi2osm/. OSM authentication is available on the deployed OSM origin. Data is real; tests mock all writes. No live-map edits are required for QA.
 
-Deep link: `?fid=FSEV1hHoFAuCsga5ex&photo=0bwUrKwuZo7Rh0npG1wsNEfu`. Optional `area=goldau|angra|songdo` and `mission=linked|unlinked|all` select a bounded queue. A linked deep target is preserved even if outside the chosen queue.
+Deep link: `?fid=FSEV1hHoFAuCsga5ex&photo=0bwUrKwuZo7Rh0npG1wsNEfu`. Optional `area=goldau|angra|songdo` and `mission=linked|unlinked|all` select a bounded local queue (up to 36 places from a 3×3 z15 tile neighbourhood). A linked deep target is preserved even if outside the chosen queue.
 
 ## Structure
 
 - `src/reviewer/Question.jsx`, `Gallery.jsx`: ported Pic4Review choice/gallery components, with Fotoshi photo attribution and current React-compatible controls.
 - `src/reviewer/main.jsx`: bounded queue and review state; no mission backend.
-- `data.js`: Fotoshi API adapters and source identities.
+- `data.js`: Fotoshi overlay API adapters and source identities; at most nine z15 tiles and two concurrent requests per area.
 - `ReviewMap.jsx`: MapLibre basemap, OSM geometry and photo locations.
 - `osm.js`: live object loading, validation, diff, conflict check, XML preservation and one-object changeset lifecycle.
 - `auth.js`: OSM OAuth 2.0 with PKCE, isolated session token and existing Fotoshi iD callback.
-- `worker.mjs`: `/fotoshi2osm/*` asset routing plus bounded public photo-list proxy. It never receives OSM tokens and cannot submit map changes.
+- `worker.mjs`: `/fotoshi2osm/*` asset routing plus static asset routing only. It never receives OSM tokens and cannot submit map changes.
 - `test/`: data identity, XML preservation, no-op/conflict/ambiguous-write/close-failure behavior, and route constraints.
 
 ## OSM authorization and upload
@@ -54,3 +54,11 @@ Upstream: https://framagit.org/Pic4Carto/Pic4Review (Adrien Pavie / Pic4Review c
 The hosted derivative and its corresponding source are AGPL-3.0-or-later: see [LICENSE](LICENSE). Photographer licences and OSM/ODbL attribution are independent. Fotoshi's existing outlined logo artwork is reused; no Sifonn font binary is distributed. Dependencies retain their respective licences (see `dist/app.js.LEGAL.txt` and MapLibre's distribution header).
 
 Related: [FOT-998](https://linear.app/fotoshi/issue/FOT-998), [FOT-1002](https://linear.app/fotoshi/issue/FOT-1002). This is a small first implementation, not completion of all proposed mission, enrichment, telemetry or website-entry-point work in those issues.
+
+The overlay payload does not currently expose `created_source` consistently. Origin is shown as unknown when absent; a GERS ID is never used to infer Overture origin. This version makes no website browse-session or telemetry requests.
+
+## Deployment
+
+The separate Cloudflare Pages project is `fotoshi2osm` (production branch `main`). `fotoshi2osm-editor` routes only `osm.fotoshi.com/fotoshi2osm*` to its assets. The root iD deployment, its callback, and the earlier Labs experiment are unchanged.
+
+With `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` supplied securely by your deployment environment, run `npm run deploy`. The script builds with the commit SHA, deploys Pages using the same pinned CLI workflow as iD, uploads the path-only worker, and checks route ownership before binding it. No secrets belong in this repository. GitHub Actions currently runs tests, the production build and dependency audit; production deployment is explicit.

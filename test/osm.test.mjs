@@ -1,23 +1,188 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import {JSDOM} from 'jsdom';
-import {parseElement,elementXml,diffTags,validateEdits,changesetXml,saveEdit} from '../src/reviewer/osm.js';
-const dom=new JSDOM('');globalThis.DOMParser=dom.window.DOMParser;globalThis.XMLSerializer=dom.window.XMLSerializer;
-const xml='<osm><node id="123" lat="47" lon="8" version="2"><tag k="name" v="Café"/><tag k="amenity" v="cafe"/></node></osm>';
-const base=parseElement(xml,'node/123');
-test('tag diff excludes unchanged and empty missing tags',()=>assert.deepEqual(diffTags(base.tags,{name:'Café',website:''}),[]));
-test('edits preserve unrelated tags and coordinates',()=>{const out=elementXml(base,{name:'New & <safe>'},42);const p=parseElement(out,'node/123');assert.equal(p.tags.name,'New & <safe>');assert.equal(p.tags.amenity,'cafe');assert.match(out,/lat="47"/);assert.match(out,/changeset="42"/);assert.equal(p.version,2);});
-test('tag removal is explicit and leaves other tags',()=>assert.deepEqual(parseElement(elementXml(base,{name:''},42),'node/123').tags,{amenity:'cafe'}));
-test('ways retain their exact node references',()=>{const way=parseElement('<osm><way id="7" version="3"><nd ref="1"/><nd ref="2"/><tag k="name" v="Path"/></way></osm>','way/7');assert.match(elementXml(way,{name:'Trail'},42),/<nd ref="1"\/><nd ref="2"\/>/);});
-test('relations retain member type, ref, role and order',()=>{const rel=parseElement('<osm><relation id="9" version="4"><member type="way" ref="7" role="outer"/><tag k="name" v="Site"/></relation></osm>','relation/9');assert.match(elementXml(rel,{name:'New site'},42),/<member type="way" ref="7" role="outer"\/>/);});
-test('deleted, malformed, mismatched and unsupported objects are rejected',()=>{for(const [input,ref] of [['<broken','node/123'],[xml,'node/124'],[xml,'user/123'],['<osm><node id="123" version="2" visible="false"/></osm>','node/123']])assert.throws(()=>parseElement(input,ref));});
-test('empty, overlong and control-character edits are rejected',()=>{for(const edits of [{name:'Café'},{'':'x'},{name:'x'.repeat(256)},{name:'bad\u0000'}])assert.throws(()=>validateEdits(base.tags,edits));});
-test('changeset source accurately includes optional Overture and escapes comments',()=>{assert.match(changesetXml('Fix "name" & details'),/Fix &quot;name&quot; &amp; details/);assert.doesNotMatch(changesetXml('Review'),/Overture/);assert.match(changesetXml('Review',true),/fotoshi;Overture Maps/);});
-function mockFetch(handlers){const original=globalThis.fetch,calls=[];globalThis.fetch=async(url,options={})=>{calls.push({url,...options});const next=handlers.shift();if(!next)throw Error('Unexpected network request');if(next instanceof Error)throw next;return new Response(next.body,{status:next.status || 200});};return {calls,restore:()=>globalThis.fetch=original};}
-const params={base,edits:{name:'New café'},comment:'Review photo evidence',token:'fixture-token'};
-test('save rechecks version, opens, updates exactly one object, then closes',async()=>{const m=mockFetch([{body:xml},{body:'42'},{body:'3'},{body:''}]);try{assert.deepEqual(await saveEdit(params),{id:'42'});assert.equal(m.calls.length,4);assert.match(m.calls[0].url,/node\/123$/);assert.match(m.calls[1].url,/changeset\/create$/);assert.match(m.calls[2].body,/version="2"/);assert.match(m.calls[3].url,/42\/close$/);}finally{m.restore();}});
-test('stale object creates no changeset and makes no writes',async()=>{const m=mockFetch([{body:xml.replace('version="2"','version="3"')}]);try{await assert.rejects(saveEdit(params),/changed/);assert.equal(m.calls.length,1);assert.equal(m.calls[0].method,undefined);}finally{m.restore();}});
-test('OSM conflict closes the changeset and reports its link',async()=>{const m=mockFetch([{body:xml},{body:'42'},{body:'Conflict',status:409},{body:''}]);try{await assert.rejects(saveEdit(params),e=>e.status===409&&e.changeset==='42');assert.match(m.calls.at(-1).url,/close$/);}finally{m.restore();}});
-test('ambiguous upload failure never retries and returns the changeset ID',async()=>{const m=mockFetch([{body:xml},{body:'42'},Error('network failure'),{body:''}]);try{await assert.rejects(saveEdit(params),e=>/outcome unknown/.test(e.message)&&e.changeset==='42');assert.equal(m.calls.filter(c=>c.url.endsWith('/node/123')&&c.method==='PUT').length,1);}finally{m.restore();}});
-test('successful upload with failed close remains successful',async()=>{const m=mockFetch([{body:xml},{body:'42'},{body:'3'},{body:'unavailable',status:503}]);try{const r=await saveEdit(params);assert.equal(r.id,'42');assert.match(r.warning,/Saved/);}finally{m.restore();}});
-test('unauthorized or no-op save makes no requests',async()=>{const m=mockFetch([]);try{await assert.rejects(saveEdit({...params,token:''}),/Sign in/);await assert.rejects(saveEdit({...params,edits:{}}),/No tag changes/);assert.equal(m.calls.length,0);}finally{m.restore();}});
+import test from "node:test";
+import assert from "node:assert/strict";
+import { JSDOM } from "jsdom";
+import {
+  parseElement,
+  elementXml,
+  diffTags,
+  validateEdits,
+  changesetXml,
+  saveEdit,
+} from "../src/reviewer/osm.js";
+const dom = new JSDOM("");
+globalThis.DOMParser = dom.window.DOMParser;
+globalThis.XMLSerializer = dom.window.XMLSerializer;
+const xml =
+  '<osm><node id="123" lat="47" lon="8" version="2"><tag k="name" v="Café"/><tag k="amenity" v="cafe"/></node></osm>';
+const base = parseElement(xml, "node/123");
+test("tag diff excludes unchanged and empty missing tags", () =>
+  assert.deepEqual(diffTags(base.tags, { name: "Café", website: "" }), []));
+test("edits preserve unrelated tags and coordinates", () => {
+  const out = elementXml(base, { name: "New & <safe>" }, 42);
+  const p = parseElement(out, "node/123");
+  assert.equal(p.tags.name, "New & <safe>");
+  assert.equal(p.tags.amenity, "cafe");
+  assert.match(out, /lat="47"/);
+  assert.match(out, /changeset="42"/);
+  assert.equal(p.version, 2);
+});
+test("tag removal is explicit and leaves other tags", () =>
+  assert.deepEqual(
+    parseElement(elementXml(base, { name: "" }, 42), "node/123").tags,
+    { amenity: "cafe" },
+  ));
+test("ways retain their exact node references", () => {
+  const way = parseElement(
+    '<osm><way id="7" version="3"><nd ref="1"/><nd ref="2"/><tag k="name" v="Path"/></way></osm>',
+    "way/7",
+  );
+  assert.match(
+    elementXml(way, { name: "Trail" }, 42),
+    /<nd ref="1"\/><nd ref="2"\/>/,
+  );
+});
+test("relations retain member type, ref, role and order", () => {
+  const rel = parseElement(
+    '<osm><relation id="9" version="4"><member type="way" ref="7" role="outer"/><tag k="name" v="Site"/></relation></osm>',
+    "relation/9",
+  );
+  assert.match(
+    elementXml(rel, { name: "New site" }, 42),
+    /<member type="way" ref="7" role="outer"\/>/,
+  );
+});
+test("deleted, malformed, mismatched and unsupported objects are rejected", () => {
+  for (const [input, ref] of [
+    ["<broken", "node/123"],
+    [xml, "node/124"],
+    [xml, "user/123"],
+    ['<osm><node id="123" version="2" visible="false"/></osm>', "node/123"],
+  ])
+    assert.throws(() => parseElement(input, ref));
+});
+test("empty, overlong and control-character edits are rejected", () => {
+  for (const edits of [
+    { name: "Café" },
+    { "": "x" },
+    { name: "x".repeat(256) },
+    { name: "bad\u0000" },
+  ])
+    assert.throws(() => validateEdits(base.tags, edits));
+});
+test("changeset source accurately includes optional Overture and escapes comments", () => {
+  assert.match(
+    changesetXml('Fix "name" & details'),
+    /Fix &quot;name&quot; &amp; details/,
+  );
+  assert.doesNotMatch(changesetXml("Review"), /Overture/);
+  assert.match(changesetXml("Review", true), /fotoshi;Overture Maps/);
+});
+function mockFetch(handlers) {
+  const original = globalThis.fetch,
+    calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url, ...options });
+    const next = handlers.shift();
+    if (!next) throw Error("Unexpected network request");
+    if (next instanceof Error) throw next;
+    return new Response(next.body, { status: next.status || 200 });
+  };
+  return { calls, restore: () => (globalThis.fetch = original) };
+}
+const params = {
+  base,
+  edits: { name: "New café" },
+  comment: "Review photo evidence",
+  token: "fixture-token",
+};
+test("save rechecks version, opens, updates exactly one object, then closes", async () => {
+  const m = mockFetch([
+    { body: xml },
+    { body: "42" },
+    { body: "3" },
+    { body: "" },
+  ]);
+  try {
+    assert.deepEqual(await saveEdit(params), { id: "42" });
+    assert.equal(m.calls.length, 4);
+    assert.match(m.calls[0].url, /node\/123$/);
+    assert.match(m.calls[1].url, /changeset\/create$/);
+    assert.match(m.calls[2].body, /version="2"/);
+    assert.match(m.calls[3].url, /42\/close$/);
+  } finally {
+    m.restore();
+  }
+});
+test("stale object creates no changeset and makes no writes", async () => {
+  const m = mockFetch([{ body: xml.replace('version="2"', 'version="3"') }]);
+  try {
+    await assert.rejects(saveEdit(params), /changed/);
+    assert.equal(m.calls.length, 1);
+    assert.equal(m.calls[0].method, undefined);
+  } finally {
+    m.restore();
+  }
+});
+test("OSM conflict closes the changeset and reports its link", async () => {
+  const m = mockFetch([
+    { body: xml },
+    { body: "42" },
+    { body: "Conflict", status: 409 },
+    { body: "" },
+  ]);
+  try {
+    await assert.rejects(
+      saveEdit(params),
+      (e) => e.status === 409 && e.changeset === "42",
+    );
+    assert.match(m.calls.at(-1).url, /close$/);
+  } finally {
+    m.restore();
+  }
+});
+test("ambiguous upload failure never retries and returns the changeset ID", async () => {
+  const m = mockFetch([
+    { body: xml },
+    { body: "42" },
+    Error("network failure"),
+    { body: "" },
+  ]);
+  try {
+    await assert.rejects(
+      saveEdit(params),
+      (e) => /outcome unknown/.test(e.message) && e.changeset === "42",
+    );
+    assert.equal(
+      m.calls.filter((c) => c.url.endsWith("/node/123") && c.method === "PUT")
+        .length,
+      1,
+    );
+  } finally {
+    m.restore();
+  }
+});
+test("successful upload with failed close remains successful", async () => {
+  const m = mockFetch([
+    { body: xml },
+    { body: "42" },
+    { body: "3" },
+    { body: "unavailable", status: 503 },
+  ]);
+  try {
+    const r = await saveEdit(params);
+    assert.equal(r.id, "42");
+    assert.match(r.warning, /Saved/);
+  } finally {
+    m.restore();
+  }
+});
+test("unauthorized or no-op save makes no requests", async () => {
+  const m = mockFetch([]);
+  try {
+    await assert.rejects(saveEdit({ ...params, token: "" }), /Sign in/);
+    await assert.rejects(saveEdit({ ...params, edits: {} }), /No tag changes/);
+    assert.equal(m.calls.length, 0);
+  } finally {
+    m.restore();
+  }
+});
